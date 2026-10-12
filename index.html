@@ -2842,6 +2842,85 @@ function closePkl(){
   var dp=document.getElementById('pklDetail');
   if(dp)dp.innerHTML='';
 }
+function _spDateQuick(preset){
+  var fromEl=document.getElementById('spDqFrom');
+  var toEl=document.getElementById('spDqTo');
+  if(!fromEl||!toEl)return;
+  var now=new Date();
+  var pad=function(n){return String(n).padStart(2,'0');};
+  var fmt=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+  if(preset==='thisMonth'){
+    fromEl.value=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-01';
+    toEl.value=fmt(now);
+  }else if(preset==='lastMonth'){
+    var lm=new Date(now.getFullYear(),now.getMonth()-1,1);
+    var lme=new Date(now.getFullYear(),now.getMonth(),0);
+    fromEl.value=fmt(lm);toEl.value=fmt(lme);
+  }else if(preset==='last30'){
+    fromEl.value=fmt(new Date(now.getTime()-29*86400000));
+    toEl.value=fmt(now);
+  }else if(preset==='last90'){
+    fromEl.value=fmt(new Date(now.getTime()-89*86400000));
+    toEl.value=fmt(now);
+  }
+}
+function _querySPDailyStats(lotSeq){
+  var fromEl=document.getElementById('spDqFrom');
+  var toEl=document.getElementById('spDqTo');
+  var resEl=document.getElementById('spDqResult');
+  if(!fromEl||!toEl||!resEl)return;
+  var dateFrom=fromEl.value,dateTo=toEl.value;
+  if(!dateFrom||!dateTo){resEl.innerHTML='<span style="color:#dc2626">날짜를 선택하세요</span>';return;}
+  if(dateFrom>dateTo){resEl.innerHTML='<span style="color:#dc2626">시작일이 종료일보다 늦습니다</span>';return;}
+  resEl.innerHTML='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px"><div class="spinner"></div><span style="color:#9ca3af;font-size:12px">조회 중...</span></div>';
+  gasCall('webGetDailyStats',{lotSeq:lotSeq,dateFrom:dateFrom,dateTo:dateTo},function(data){
+    if(data.error){resEl.innerHTML='<span style="color:#dc2626">'+data.error+'</span>';return;}
+    var rows=data.rows||[];
+    if(!rows.length){resEl.innerHTML='<div style="padding:12px;color:#9ca3af;text-align:center">해당 기간 결제 내역 없음</div>';return;}
+    var dateMap={},dateOrder=[];
+    rows.forEach(function(r){
+      var d=r.date;
+      if(!dateMap[d]){dateMap[d]={total:0,totalCnt:0,coupons:[]};dateOrder.push(d);}
+      var rev=parseInt(r.rev)||0,cnt=parseInt(r.cnt)||0;
+      dateMap[d].total+=rev;dateMap[d].totalCnt+=cnt;
+      dateMap[d].coupons.push({name:r.couponName,rev:rev,cnt:cnt});
+    });
+    var grandTotal=0,grandCnt=0;
+    dateOrder.forEach(function(d){grandTotal+=dateMap[d].total;grandCnt+=dateMap[d].totalCnt;});
+    var FM=function(n){var v=parseInt(n)||0;return v>=10000?Math.round(v/10000)+'만':v.toLocaleString();};
+    var DOW=['일','월','화','수','목','금','토'];
+    var h='<div style="display:flex;gap:16px;background:#EBF2FF;border-radius:8px;padding:10px 14px;margin-bottom:8px">';
+    h+='<div><div style="font-size:10px;color:#3182F6">기간 합계</div><div style="font-size:15px;font-weight:800;color:#3182F6">'+grandTotal.toLocaleString()+'원</div></div>';
+    h+='<div><div style="font-size:10px;color:#3182F6">총 건수</div><div style="font-size:15px;font-weight:800;color:#3182F6">'+grandCnt+'건</div></div>';
+    h+='<div><div style="font-size:10px;color:#3182F6">일수</div><div style="font-size:15px;font-weight:800;color:#3182F6">'+dateOrder.length+'일</div></div>';
+    h+='</div>';
+    h+='<div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;max-height:260px;overflow-y:auto">';
+    dateOrder.forEach(function(d){
+      var info=dateMap[d];
+      var dObj=new Date(d+'T00:00:00');
+      var dow=DOW[dObj.getDay()];
+      var isWknd=dObj.getDay()===0||dObj.getDay()===6;
+      var dowClr=isWknd?'#dc2626':'#374151';
+      h+='<div style="border-bottom:1px solid #f3f4f6">';
+      h+='<div style="display:flex;align-items:center;padding:7px 10px;background:#f9fafb;gap:8px">';
+      h+='<span style="font-size:11px;font-weight:700;color:#374151;width:70px">'+d.slice(5)+' <span style="color:'+dowClr+'">('+dow+')</span></span>';
+      h+='<span style="font-size:12px;font-weight:800;color:#374151;flex:1">'+info.total.toLocaleString()+'원</span>';
+      h+='<span style="font-size:11px;color:#9ca3af">'+info.totalCnt+'건</span>';
+      h+='</div>';
+      info.coupons.forEach(function(c){
+        if(!c.rev)return;
+        h+='<div style="display:flex;padding:4px 10px 4px 24px;gap:8px;border-top:1px solid #f9fafb">';
+        h+='<span style="font-size:11px;color:#6b7280;flex:1">'+c.name+'</span>';
+        h+='<span style="font-size:11px;font-weight:600;color:#374151">'+FM(c.rev)+'원</span>';
+        h+='<span style="font-size:10px;color:#9ca3af;width:28px;text-align:right">'+c.cnt+'건</span>';
+        h+='</div>';
+      });
+      h+='</div>';
+    });
+    h+='</div>';
+    resEl.innerHTML=h;
+  },function(err){resEl.innerHTML='<span style="color:#dc2626">조회 실패: '+(err.message||String(err))+'</span>';});
+}
 
 function selectPkl(idx){
   var r=window._viewData&&window._viewData[idx];
@@ -2879,6 +2958,30 @@ function selectPkl(idx){
   // 권종별 매출
   h+='<div style="font-size:12px;font-weight:700;color:#3182F6;margin-bottom:6px">🎫 권종별 매출 ('+pLabel[state.period]+')</div>';
   h+='<div id="ticketArea" style="font-size:11px;color:#9ca3af">조회중...</div>';
+  // 기간별 매출 조회
+  var _spNow=new Date();
+  var _spPad=function(n){return String(n).padStart(2,'0');};
+  var _spFmt=function(d){return d.getFullYear()+'-'+_spPad(d.getMonth()+1)+'-'+_spPad(d.getDate());};
+  var _spDefFrom=_spNow.getFullYear()+'-'+_spPad(_spNow.getMonth()+1)+'-01';
+  var _spDefTo=_spFmt(_spNow);
+  var _spLotId=r.id||0;
+  var _bSt='padding:4px 10px;border-radius:6px;border:1px solid #e5e7eb;background:#f9fafb;color:#374151;font-size:11px;cursor:pointer;font-family:inherit';
+  h+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid #f3f4f6">';
+  h+='<div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px">📅 기간별 매출 조회</div>';
+  h+='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">';
+  h+='<button onclick="_spDateQuick(\'thisMonth\')" style="'+_bSt+'">이번달</button>';
+  h+='<button onclick="_spDateQuick(\'lastMonth\')" style="'+_bSt+'">지난달</button>';
+  h+='<button onclick="_spDateQuick(\'last30\')" style="'+_bSt+'">최근30일</button>';
+  h+='<button onclick="_spDateQuick(\'last90\')" style="'+_bSt+'">최근90일</button>';
+  h+='</div>';
+  h+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
+  h+='<input type="date" id="spDqFrom" value="'+_spDefFrom+'" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:inherit;outline:none;color:#374151">';
+  h+='<span style="color:#9ca3af;font-size:12px">~</span>';
+  h+='<input type="date" id="spDqTo" value="'+_spDefTo+'" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:inherit;outline:none;color:#374151">';
+  h+='<button onclick="_querySPDailyStats('+_spLotId+')" style="padding:6px 14px;border-radius:6px;border:none;background:#3182F6;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">조회</button>';
+  h+='</div>';
+  h+='<div id="spDqResult" style="font-size:12px;color:#9ca3af;text-align:center;padding:10px">날짜를 선택하고 조회하세요</div>';
+  h+='</div>';
   h+='</div>';
   dp.innerHTML=h;
 
