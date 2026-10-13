@@ -801,7 +801,7 @@ async function h_webLoadAptList(p, gToken) {
         }
         result.push(item);
       }
-    } catch (e) { /* skip unavailable sheet */ }
+    } catch (e) { result.push({ _err: e.message, _sheet: defs[s] ? defs[s].name : '?' }); }
   }
   return result;
 }
