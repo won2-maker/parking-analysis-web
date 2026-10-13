@@ -191,29 +191,6 @@ module.exports = async function(req, res) {
       case 'webGetSheetSoldout': result = await h_webGetSheetSoldout(gToken); break;
       case 'getSearchHistory': result = await h_getSearchHistory(gToken); break;
       case 'saveSearchHistory': result = await h_saveSearchHistory(p, gToken); break;
-      case '_dbg': {
-        var st = await getSheetsToken();
-        var dbgRows = null, dbgErr = null, dbgItems = [], dbgSkip = 0;
-        if (st) {
-          try {
-            var tab = p.tab || '임대아파트 list 서울';
-            dbgRows = await sheetsRead(SHEET_ID, "'" + tab + "'", st);
-            if (dbgRows && dbgRows.length >= 2) {
-              var c0v = String(dbgRows[0][0]||'').trim();
-              var cov = c0v === '유형' ? 1 : 0;
-              for (var di = 1; di < Math.min(dbgRows.length, 10); di++) {
-                var dr = dbgRows[di];
-                var dn = dr[cov], da = dr[cov+1];
-                if (!dn || !da) { dbgSkip++; continue; }
-                dbgItems.push({ name: String(dn), addr: String(da) });
-              }
-            }
-          } catch(e) { dbgErr = e.message; }
-        }
-        var c0x = dbgRows && dbgRows[0] ? String(dbgRows[0][0]||'').trim() : '';
-        result = { hasToken: !!st, totalRows: dbgRows ? dbgRows.length : null, firstItems: dbgItems, skipped: dbgSkip, c0: c0x, err: dbgErr };
-        break;
-      }
       default: result = { error: 'unknown action: ' + action };
     }
   } catch (e) {
@@ -824,7 +801,7 @@ async function h_webLoadAptList(p, gToken) {
         }
         result.push(item);
       }
-    } catch (e) { result.push({ _err: e.message, _sheet: defs[s] ? defs[s].name : '?' }); }
+    } catch (e) { /* skip unavailable sheet */ }
   }
   return result;
 }
