@@ -191,20 +191,6 @@ module.exports = async function(req, res) {
       case 'webGetSheetSoldout': result = await h_webGetSheetSoldout(gToken); break;
       case 'getSearchHistory': result = await h_getSearchHistory(gToken); break;
       case 'saveSearchHistory': result = await h_saveSearchHistory(p, gToken); break;
-      case '_debugSheets': {
-        var shTok = await getSheetsToken();
-        result = { hasToken: !!shTok, tokenPrefix: shTok ? shTok.slice(0,20) : null };
-        if (shTok) {
-          try {
-            var tr = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID + '/values/' + encodeURIComponent("'임대아파트 list 서울'!A1:B2"), { headers: Object.assign({ Authorization: 'Bearer ' + shTok }, SH_HEADERS) });
-            var td = await tr.json();
-            result.sheetsOk = !td.error;
-            result.sheetsErr = td.error ? td.error.message : null;
-            result.rows = (td.values || []).length;
-          } catch(e) { result.sheetsErr = e.message; }
-        }
-        break;
-      }
       default: result = { error: 'unknown action: ' + action };
     }
   } catch (e) {
