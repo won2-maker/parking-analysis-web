@@ -291,7 +291,7 @@ input[type=range]{accent-color:var(--blue)}
 </div>
 
 <script>
-var GAS_API='https://script.google.com/a/macros/socar.kr/s/AKfycbzv6cxBf_5u5HjAyd74huTmvXB4vIKqUijtt09kxfV6/exec';
+var GAS_API='/api/gas';
 function gasCall(action,params,onSuccess,onError){
   var url=GAS_API+'?action='+encodeURIComponent(action);
   if(params)Object.keys(params).forEach(function(k){var v=params[k];url+='&'+encodeURIComponent(k)+'='+encodeURIComponent(v!==null&&v!==undefined?String(v):'');});
