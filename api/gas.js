@@ -191,6 +191,18 @@ module.exports = async function(req, res) {
       case 'webGetSheetSoldout': result = await h_webGetSheetSoldout(gToken); break;
       case 'getSearchHistory': result = await h_getSearchHistory(gToken); break;
       case 'saveSearchHistory': result = await h_saveSearchHistory(p, gToken); break;
+      case '_dbg': {
+        var st = await getSheetsToken();
+        var dbgRows = null, dbgErr = null;
+        if (st) {
+          try {
+            var tab = p.tab || '임대아파트 list 서울';
+            dbgRows = await sheetsRead(SHEET_ID, "'" + tab + "'", st);
+          } catch(e) { dbgErr = e.message; }
+        }
+        result = { hasToken: !!st, rows: dbgRows ? dbgRows.length : null, row0: dbgRows && dbgRows[0] ? dbgRows[0].slice(0,3) : null, err: dbgErr };
+        break;
+      }
       default: result = { error: 'unknown action: ' + action };
     }
   } catch (e) {
