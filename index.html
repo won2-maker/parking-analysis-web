@@ -208,8 +208,20 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 input[type=range]{accent-color:var(--blue)}
 @media (prefers-reduced-motion:reduce){.spinner,.mode-tab,.btn,.preset{transition:none;animation:none}}
 </style>
+<script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
+<div id="_authOverlay" style="position:fixed;inset:0;background:rgba(255,255,255,0.97);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;font-family:'Pretendard',-apple-system,sans-serif">
+  <div style="font-size:52px">🅿</div>
+  <div style="font-size:22px;font-weight:700;color:#191F28">주차장 분석</div>
+  <div id="_authSpinner" style="width:24px;height:24px;border:3px solid #E5E8EB;border-top-color:#3182F6;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <div id="_authMsg" style="font-size:14px;color:#6B7684;display:none">socar.kr Google 계정으로 로그인해주세요</div>
+  <button id="_gSignInBtn" onclick="_triggerGoogleSignIn()" style="display:none;align-items:center;gap:10px;padding:12px 24px;border:1px solid #E5E8EB;border-radius:8px;background:#fff;font-size:15px;font-weight:600;color:#191F28;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+    <svg width="18" height="18" viewBox="0 0 48 48" style="flex-shrink:0"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/><path fill="#34A853" d="M2 24c0 5.5 2 10.5 5.4 14.3l7-7C12.5 28.9 11 26.6 11 24H2z"/><path fill="#FBBC05" d="M24 11c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2c-9.4 0-17.5 5.7-21.1 14l8.2 6.4C12.9 15.4 18 11 24 11z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-1.1 3-3.4 5.5-6.4 7.1l7 7C40.9 38.7 44 31.8 44 24c0-1.3-.2-2.7-.5-4z"/></svg>
+    Google 계정으로 계속하기
+  </button>
+  <div id="_authErrMsg" style="font-size:12px;color:#F04452;display:none"></div>
+</div>
 <div id="_app" style="height:100vh">
 <div class="wrap">
   <button id="sideOpenBtn" onclick="_toggleSidebar()" title="사이드바 열기" style="display:none;position:fixed;top:50%;left:0;transform:translateY(-50%);z-index:100;width:20px;height:48px;border:1px solid var(--border);border-left:none;border-radius:0 6px 6px 0;background:var(--white);cursor:pointer;color:var(--text-3);align-items:center;justify-content:center;box-shadow:2px 0 8px rgba(0,0,0,0.08)">
@@ -292,12 +304,76 @@ input[type=range]{accent-color:var(--blue)}
 
 <script>
 var GAS_API='/api/gas';
+
+// ── Google Auth ──
+var _GCLIENT_ID='REPLACE_WITH_YOUR_CLIENT_ID';
+var _gToken=null;
+var _gTokenClient=null;
+var _authReady=false;
+
+function _initGoogleAuth(){
+  if(!window.google||!google.accounts||!google.accounts.oauth2){
+    setTimeout(_initGoogleAuth,300);
+    return;
+  }
+  _gTokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:_GCLIENT_ID,
+    scope:'email',
+    callback:function(resp){
+      if(resp.access_token){
+        _gToken=resp.access_token;
+        document.getElementById('_authOverlay').style.display='none';
+        _authReady=true;
+        // 토큰 1시간 후 만료, 50분에 갱신
+        setTimeout(function(){_gTokenClient.requestAccessToken({prompt:''});},50*60*1000);
+      } else {
+        document.getElementById('_authSpinner').style.display='none';
+        document.getElementById('_authMsg').style.display='block';
+        document.getElementById('_gSignInBtn').style.display='flex';
+        if(resp.error&&resp.error!=='immediate_failed'){
+          document.getElementById('_authErrMsg').style.display='block';
+          document.getElementById('_authErrMsg').textContent=resp.error;
+        }
+      }
+    }
+  });
+  _gTokenClient.requestAccessToken({prompt:''});
+}
+function _triggerGoogleSignIn(){
+  document.getElementById('_gSignInBtn').style.display='none';
+  document.getElementById('_authSpinner').style.display='block';
+  _gTokenClient.requestAccessToken({prompt:'select_account'});
+}
+window.addEventListener('load',function(){
+  if(_GCLIENT_ID==='REPLACE_WITH_YOUR_CLIENT_ID'){
+    // Client ID 미설정 → 인증 없이 바로 진행 (개발/임시)
+    document.getElementById('_authOverlay').style.display='none';
+  } else {
+    _initGoogleAuth();
+  }
+});
+
 function gasCall(action,params,onSuccess,onError){
   var url=GAS_API+'?action='+encodeURIComponent(action);
   if(params)Object.keys(params).forEach(function(k){var v=params[k];url+='&'+encodeURIComponent(k)+'='+encodeURIComponent(v!==null&&v!==undefined?String(v):'');});
-  fetch(url,{redirect:'follow'})
+  var hdrs={};
+  if(_gToken)hdrs['X-GToken']=_gToken;
+  fetch(url,{redirect:'follow',headers:hdrs})
     .then(function(r){return r.json();})
-    .then(function(data){if(onSuccess)onSuccess(data);})
+    .then(function(data){
+      if(data&&data.error==='GAS_AUTH_REQUIRED'){
+        _gToken=null;
+        var ov=document.getElementById('_authOverlay');
+        if(ov){
+          ov.style.display='flex';
+          document.getElementById('_authSpinner').style.display='none';
+          document.getElementById('_authMsg').style.display='block';
+          document.getElementById('_gSignInBtn').style.display='flex';
+        }
+        return;
+      }
+      if(onSuccess)onSuccess(data);
+    })
     .catch(function(err){if(onError)onError(err);});
 }
 // ── 모드 스위처 ──
