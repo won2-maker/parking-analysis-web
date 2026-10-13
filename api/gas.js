@@ -200,7 +200,10 @@ module.exports = async function(req, res) {
             dbgRows = await sheetsRead(SHEET_ID, "'" + tab + "'", st);
           } catch(e) { dbgErr = e.message; }
         }
-        result = { hasToken: !!st, rows: dbgRows ? dbgRows.length : null, row0: dbgRows && dbgRows[0] ? dbgRows[0].slice(0,3) : null, err: dbgErr };
+        var c0 = dbgRows && dbgRows[0] ? String(dbgRows[0][0]||'').trim() : '';
+        var co = c0 === '유형' ? 1 : 0;
+        var r1 = dbgRows && dbgRows[1] ? dbgRows[1] : null;
+        result = { hasToken: !!st, rows: dbgRows ? dbgRows.length : null, row0: dbgRows && dbgRows[0] ? dbgRows[0].slice(0,4) : null, row1: r1 ? r1.slice(0,4) : null, c0: c0, co: co, name1: r1 ? r1[co] : null, addr1: r1 ? r1[co+1] : null, err: dbgErr };
         break;
       }
       default: result = { error: 'unknown action: ' + action };
