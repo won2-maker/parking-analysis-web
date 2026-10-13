@@ -2,6 +2,8 @@
  * api/gas.js — BQ + Kakao + Sheets direct router (replaces GAS proxy)
  */
 
+const crypto = require('crypto');
+
 const PROJECT = 'moduparking';
 const BQ_LOC = 'asia-northeast3';
 const KAKAO_KEY = process.env.KAKAO_KEY || '4cd2110ba8cbb8cc0d260725460ec9f6';
@@ -12,6 +14,45 @@ const PERF_SHEET_ID = '1OuvWGVIQBw1kqQCU5LqAYbSHpMwoRQUCyEuQVbjyM_c';
 
 // BQ token cache (warm between invocations on same instance)
 let _bqTok = null, _bqExp = 0;
+
+// Service account token cache (for Sheets read access)
+let _saTok = null, _saExp = 0;
+
+async function getSaToken() {
+  if (_saTok && Date.now() < _saExp) return _saTok;
+  var saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!saJson) return null;
+  try {
+    var sa = JSON.parse(saJson);
+    if (!sa.private_key || !sa.client_email) return null;
+    var now = Math.floor(Date.now() / 1000);
+    var header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    var payload = Buffer.from(JSON.stringify({
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now
+    })).toString('base64url');
+    var sign = crypto.createSign('RSA-SHA256');
+    sign.update(header + '.' + payload);
+    var sig = sign.sign(sa.private_key, 'base64url');
+    var jwt = header + '.' + payload + '.' + sig;
+    var r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt
+      })
+    });
+    var d = await r.json();
+    if (!d.access_token) return null;
+    _saTok = d.access_token;
+    _saExp = Date.now() + ((d.expires_in || 3600) - 60) * 1000;
+    return _saTok;
+  } catch (e) { return null; }
+}
 
 async function getBqToken() {
   if (_bqTok && Date.now() < _bqExp) return _bqTok;
@@ -735,7 +776,8 @@ async function h_webLoadTickets(p) {
 // ── Sheets Handlers (use user's X-GToken) ──
 
 async function h_webLoadAptList(p, gToken) {
-  if (!gToken) return [];
+  var tok = gToken || await getSaToken();
+  if (!tok) return [];
   var typeFilter = p.typeFilter || '전체';
   var sheetDefs = [
     { name: '임대아파트 list 서울', region: '서울', type: '아파트' },
@@ -750,7 +792,7 @@ async function h_webLoadAptList(p, gToken) {
   for (var s = 0; s < defs.length; s++) {
     try {
       var def = defs[s];
-      var rows = await sheetsRead(SHEET_ID, "'" + def.name + "'", gToken);
+      var rows = await sheetsRead(SHEET_ID, "'" + def.name + "'", tok);
       if (!rows || rows.length < 2) continue;
       var c0 = String(rows[0][0] || '').trim();
       var co = c0 === '유형' ? 1 : 0;
@@ -778,12 +820,13 @@ async function h_webLoadAptList(p, gToken) {
 }
 
 async function h_webLoadRanking(p, gToken) {
-  if (!gToken) return null;
+  var tok = gToken || await getSaToken();
+  if (!tok) return null;
   var tf = p.typeFilter || '전체';
   var region = p.region || '전체';
   var sheetName = tf === '전체' ? '랭킹_' + region : '랭킹_' + tf + '_' + region;
   try {
-    var rows = await sheetsRead(SHEET_ID, "'" + sheetName + "'", gToken);
+    var rows = await sheetsRead(SHEET_ID, "'" + sheetName + "'", tok);
     if (!rows || rows.length < 2) return null;
     var data = rows.slice(1).map(function(row, i) {
       return {
@@ -800,9 +843,10 @@ async function h_webLoadRanking(p, gToken) {
 }
 
 async function h_webGetSalesLots(gToken) {
-  if (!gToken) return {};
+  var tok = gToken || await getSaToken();
+  if (!tok) return {};
   try {
-    var rows = await sheetsRead(SHEET_ID, '영업_등록', gToken);
+    var rows = await sheetsRead(SHEET_ID, '영업_등록', tok);
     if (!rows || rows.length < 2) return {};
     var result = {};
     for (var i = 1; i < rows.length; i++) {
@@ -854,14 +898,15 @@ async function h_webUpdateSalesperson(p, gToken) {
 }
 
 async function h_webLoadAptPerfData(gToken) {
-  if (!gToken) return [{ name: '독립문극동아파트', spaces: 55, barrierCost: 3000000, months: [] }];
+  var tok = gToken || await getSaToken();
+  if (!tok) return [{ name: '독립문극동아파트', spaces: 55, barrierCost: 3000000, months: [] }];
   var partnerLots = [{ gid: 739887865, name: '독립문극동아파트', spaces: 55, barrierCost: 3000000 }];
   var results = [];
   var curYM = new Date().toISOString().slice(0, 7);
   for (var li = 0; li < partnerLots.length; li++) {
     var lot = partnerLots[li];
     try {
-      var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + PERF_SHEET_ID + '?fields=sheets.properties', { headers: { Authorization: 'Bearer ' + gToken } });
+      var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + PERF_SHEET_ID + '?fields=sheets.properties', { headers: { Authorization: 'Bearer ' + tok } });
       var meta = await metaR.json();
       if (meta.error) throw new Error(meta.error.message);
       var sheet = null;
@@ -870,7 +915,7 @@ async function h_webLoadAptPerfData(gToken) {
       }
       if (!sheet) { results.push(Object.assign({}, lot, { months: [], error: '시트 없음' })); continue; }
       var sheetTitle = sheet.properties.title;
-      var data = await sheetsRead(PERF_SHEET_ID, "'" + sheetTitle + "'", gToken);
+      var data = await sheetsRead(PERF_SHEET_ID, "'" + sheetTitle + "'", tok);
       if (!data) { results.push(Object.assign({}, lot, { months: [] })); continue; }
       var headerRow = -1;
       for (var r = 0; r < Math.min(10, data.length); r++) {
@@ -904,9 +949,10 @@ async function h_webLoadAptPerfData(gToken) {
 }
 
 async function h_webGetSheetSoldout(gToken) {
-  if (!gToken) return { rows: [], updated: '' };
+  var tok = gToken || await getSaToken();
+  if (!tok) return { rows: [], updated: '' };
   try {
-    var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SOLDOUT_SHEET_ID + '?fields=sheets.properties', { headers: { Authorization: 'Bearer ' + gToken } });
+    var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SOLDOUT_SHEET_ID + '?fields=sheets.properties', { headers: { Authorization: 'Bearer ' + tok } });
     var meta = await metaR.json();
     if (meta.error) throw new Error(meta.error.message);
     var sheet = null;
@@ -916,7 +962,7 @@ async function h_webGetSheetSoldout(gToken) {
     if (!sheet && meta.sheets && meta.sheets.length) sheet = meta.sheets[meta.sheets.length - 1];
     if (!sheet) return { rows: [], updated: '' };
     var sheetTitle = sheet.properties.title;
-    var data = await sheetsRead(SOLDOUT_SHEET_ID, "'" + sheetTitle + "'", gToken);
+    var data = await sheetsRead(SOLDOUT_SHEET_ID, "'" + sheetTitle + "'", tok);
     if (!data) return { rows: [], updated: '' };
     var hIdx = 0;
     for (var r = 0; r < Math.min(10, data.length); r++) {
@@ -945,9 +991,10 @@ async function h_webGetSheetSoldout(gToken) {
 }
 
 async function h_getSearchHistory(gToken) {
-  if (!gToken) return [];
+  var tok = gToken || await getSaToken();
+  if (!tok) return [];
   try {
-    var rows = await sheetsRead(SHEET_ID, '검색기록', gToken);
+    var rows = await sheetsRead(SHEET_ID, '검색기록', tok);
     if (!rows || rows.length < 2) return [];
     var seen = {}, result = [];
     for (var i = rows.length - 1; i >= 1; i--) {
