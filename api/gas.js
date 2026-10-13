@@ -108,9 +108,11 @@ async function geocodeKakao(address) {
   return null;
 }
 
+var SH_HEADERS = { 'x-goog-user-project': 'moduparking' };
+
 async function sheetsRead(sheetId, range, tok) {
-  if (!tok) return null; // caller handles null
-  var r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(range), { headers: { Authorization: 'Bearer ' + tok } });
+  if (!tok) return null;
+  var r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(range), { headers: Object.assign({ Authorization: 'Bearer ' + tok }, SH_HEADERS) });
   var d = await r.json();
   if (d.error) throw new Error(d.error.message || JSON.stringify(d.error));
   return d.values || [];
@@ -120,7 +122,7 @@ async function sheetsAppend(sheetId, range, values, tok) {
   if (!tok) return null;
   var r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+    headers: Object.assign({ Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, SH_HEADERS),
     body: JSON.stringify({ values: values })
   });
   var d = await r.json();
@@ -132,7 +134,7 @@ async function sheetsUpdateCell(sheetId, range, values, tok) {
   if (!tok) return null;
   var r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED', {
     method: 'PUT',
-    headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+    headers: Object.assign({ Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, SH_HEADERS),
     body: JSON.stringify({ values: values })
   });
   var d = await r.json();
@@ -891,7 +893,7 @@ async function h_webLoadAptPerfData(gToken) {
   for (var li = 0; li < partnerLots.length; li++) {
     var lot = partnerLots[li];
     try {
-      var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + PERF_SHEET_ID + '?fields=sheets.properties', { headers: { Authorization: 'Bearer ' + tok } });
+      var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + PERF_SHEET_ID + '?fields=sheets.properties', { headers: Object.assign({ Authorization: 'Bearer ' + tok }, SH_HEADERS) });
       var meta = await metaR.json();
       if (meta.error) throw new Error(meta.error.message);
       var sheet = null;
@@ -937,7 +939,7 @@ async function h_webGetSheetSoldout(gToken) {
   var tok = gToken || await getSheetsToken();
   if (!tok) return { rows: [], updated: '' };
   try {
-    var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SOLDOUT_SHEET_ID + '?fields=sheets.properties', { headers: { Authorization: 'Bearer ' + tok } });
+    var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SOLDOUT_SHEET_ID + '?fields=sheets.properties', { headers: Object.assign({ Authorization: 'Bearer ' + tok }, SH_HEADERS) });
     var meta = await metaR.json();
     if (meta.error) throw new Error(meta.error.message);
     var sheet = null;
