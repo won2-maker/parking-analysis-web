@@ -292,6 +292,11 @@ input[type=range]{accent-color:var(--blue)}
       </div>
     </div>
 
+    <div id="_userBar" style="display:none;padding:8px 12px;border-top:1px solid var(--border);background:var(--white);flex-shrink:0;align-items:center;gap:8px">
+      <img id="_userAvatar" src="" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--bg)">
+      <span id="_userEmail" style="font-size:11px;color:var(--text-2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0"></span>
+      <button onclick="_signOut()" style="font-size:11px;color:var(--text-3);border:none;background:none;cursor:pointer;padding:2px 6px;font-family:inherit;white-space:nowrap;flex-shrink:0;border-radius:4px;transition:background 0.12s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='none'">로그아웃</button>
+    </div>
     <div class="version-bar">2026.10.08 12:11 updated</div>
   </div>
   <!-- RIGHT -->
@@ -308,8 +313,53 @@ var GAS_API='/api/gas';
 // ── Google Auth ──
 var _GCLIENT_ID='REPLACE_WITH_YOUR_CLIENT_ID';
 var _gToken=null;
+var _gUser=null;
 var _gTokenClient=null;
-var _authReady=false;
+
+function _showAuthOverlay(msg){
+  var ov=document.getElementById('_authOverlay');
+  if(!ov)return;
+  ov.style.display='flex';
+  document.getElementById('_authSpinner').style.display='none';
+  document.getElementById('_authMsg').style.display=msg?'block':'none';
+  if(msg)document.getElementById('_authMsg').textContent=msg;
+  document.getElementById('_gSignInBtn').style.display='flex';
+  document.getElementById('_authErrMsg').style.display='none';
+}
+
+function _onTokenReceived(token){
+  // userinfo로 socar.kr 검증
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+token}})
+    .then(function(r){return r.json();})
+    .then(function(user){
+      if(!user.email||!user.email.endsWith('@socar.kr')){
+        google.accounts.oauth2.revoke(token,function(){});
+        document.getElementById('_authErrMsg').style.display='block';
+        document.getElementById('_authErrMsg').textContent='socar.kr 계정만 접근 가능합니다';
+        _showAuthOverlay('다른 계정으로 다시 시도해주세요');
+        return;
+      }
+      _gToken=token;
+      _gUser=user;
+      // 유저바 표시
+      var bar=document.getElementById('_userBar');
+      if(bar){
+        bar.style.display='flex';
+        var av=document.getElementById('_userAvatar');
+        if(av&&user.picture)av.src=user.picture;
+        var em=document.getElementById('_userEmail');
+        if(em)em.textContent=user.email;
+      }
+      document.getElementById('_authOverlay').style.display='none';
+      // 50분 후 자동 갱신
+      setTimeout(function(){if(_gTokenClient)_gTokenClient.requestAccessToken({prompt:'',callback:function(r){if(r.access_token)_gToken=r.access_token;}});},50*60*1000);
+    })
+    .catch(function(){
+      // userinfo 실패 → 일단 통과 (네트워크 일시 오류)
+      _gToken=token;
+      document.getElementById('_authOverlay').style.display='none';
+    });
+}
 
 function _initGoogleAuth(){
   if(!window.google||!google.accounts||!google.accounts.oauth2){
@@ -318,35 +368,36 @@ function _initGoogleAuth(){
   }
   _gTokenClient=google.accounts.oauth2.initTokenClient({
     client_id:_GCLIENT_ID,
-    scope:'email',
+    scope:'openid email profile',
     callback:function(resp){
       if(resp.access_token){
-        _gToken=resp.access_token;
-        document.getElementById('_authOverlay').style.display='none';
-        _authReady=true;
-        // 토큰 1시간 후 만료, 50분에 갱신
-        setTimeout(function(){_gTokenClient.requestAccessToken({prompt:''});},50*60*1000);
+        _onTokenReceived(resp.access_token);
       } else {
         document.getElementById('_authSpinner').style.display='none';
         document.getElementById('_authMsg').style.display='block';
         document.getElementById('_gSignInBtn').style.display='flex';
-        if(resp.error&&resp.error!=='immediate_failed'){
-          document.getElementById('_authErrMsg').style.display='block';
-          document.getElementById('_authErrMsg').textContent=resp.error;
-        }
       }
     }
   });
   _gTokenClient.requestAccessToken({prompt:''});
 }
+
 function _triggerGoogleSignIn(){
   document.getElementById('_gSignInBtn').style.display='none';
   document.getElementById('_authSpinner').style.display='block';
+  document.getElementById('_authErrMsg').style.display='none';
   _gTokenClient.requestAccessToken({prompt:'select_account'});
 }
+
+function _signOut(){
+  if(_gToken)google.accounts.oauth2.revoke(_gToken,function(){});
+  _gToken=null;_gUser=null;
+  document.getElementById('_userBar').style.display='none';
+  _showAuthOverlay('socar.kr 계정으로 로그인해주세요');
+}
+
 window.addEventListener('load',function(){
   if(_GCLIENT_ID==='REPLACE_WITH_YOUR_CLIENT_ID'){
-    // Client ID 미설정 → 인증 없이 바로 진행 (개발/임시)
     document.getElementById('_authOverlay').style.display='none';
   } else {
     _initGoogleAuth();
@@ -363,13 +414,7 @@ function gasCall(action,params,onSuccess,onError){
     .then(function(data){
       if(data&&data.error==='GAS_AUTH_REQUIRED'){
         _gToken=null;
-        var ov=document.getElementById('_authOverlay');
-        if(ov){
-          ov.style.display='flex';
-          document.getElementById('_authSpinner').style.display='none';
-          document.getElementById('_authMsg').style.display='block';
-          document.getElementById('_gSignInBtn').style.display='flex';
-        }
+        _showAuthOverlay('세션이 만료됐습니다. 다시 로그인해주세요');
         return;
       }
       if(onSuccess)onSuccess(data);
