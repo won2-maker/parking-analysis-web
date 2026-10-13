@@ -2,8 +2,6 @@
  * api/gas.js — BQ + Kakao + Sheets direct router (replaces GAS proxy)
  */
 
-const crypto = require('crypto');
-
 const PROJECT = 'moduparking';
 const BQ_LOC = 'asia-northeast3';
 const KAKAO_KEY = process.env.KAKAO_KEY || '4cd2110ba8cbb8cc0d260725460ec9f6';
@@ -15,42 +13,29 @@ const PERF_SHEET_ID = '1OuvWGVIQBw1kqQCU5LqAYbSHpMwoRQUCyEuQVbjyM_c';
 // BQ token cache (warm between invocations on same instance)
 let _bqTok = null, _bqExp = 0;
 
-// Service account token cache (for Sheets read access)
-let _saTok = null, _saExp = 0;
+// Sheets token cache (server-side, spreadsheets scope)
+let _shTok = null, _shExp = 0;
 
-async function getSaToken() {
-  if (_saTok && Date.now() < _saExp) return _saTok;
-  var saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!saJson) return null;
+async function getSheetsToken() {
+  if (_shTok && Date.now() < _shExp) return _shTok;
+  var rt = process.env.SHEETS_REFRESH_TOKEN;
+  if (!rt) return null;
   try {
-    var sa = JSON.parse(saJson);
-    if (!sa.private_key || !sa.client_email) return null;
-    var now = Math.floor(Date.now() / 1000);
-    var header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-    var payload = Buffer.from(JSON.stringify({
-      iss: sa.client_email,
-      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now
-    })).toString('base64url');
-    var sign = crypto.createSign('RSA-SHA256');
-    sign.update(header + '.' + payload);
-    var sig = sign.sign(sa.private_key, 'base64url');
-    var jwt = header + '.' + payload + '.' + sig;
     var r = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: jwt
+        grant_type: 'refresh_token',
+        client_id: process.env.BQ_CLIENT_ID,
+        client_secret: process.env.BQ_CLIENT_SECRET,
+        refresh_token: rt
       })
     });
     var d = await r.json();
     if (!d.access_token) return null;
-    _saTok = d.access_token;
-    _saExp = Date.now() + ((d.expires_in || 3600) - 60) * 1000;
-    return _saTok;
+    _shTok = d.access_token;
+    _shExp = Date.now() + ((d.expires_in || 3600) - 60) * 1000;
+    return _shTok;
   } catch (e) { return null; }
 }
 
@@ -776,7 +761,7 @@ async function h_webLoadTickets(p) {
 // ── Sheets Handlers (use user's X-GToken) ──
 
 async function h_webLoadAptList(p, gToken) {
-  var tok = gToken || await getSaToken();
+  var tok = gToken || await getSheetsToken();
   if (!tok) return [];
   var typeFilter = p.typeFilter || '전체';
   var sheetDefs = [
@@ -820,7 +805,7 @@ async function h_webLoadAptList(p, gToken) {
 }
 
 async function h_webLoadRanking(p, gToken) {
-  var tok = gToken || await getSaToken();
+  var tok = gToken || await getSheetsToken();
   if (!tok) return null;
   var tf = p.typeFilter || '전체';
   var region = p.region || '전체';
@@ -843,7 +828,7 @@ async function h_webLoadRanking(p, gToken) {
 }
 
 async function h_webGetSalesLots(gToken) {
-  var tok = gToken || await getSaToken();
+  var tok = gToken || await getSheetsToken();
   if (!tok) return {};
   try {
     var rows = await sheetsRead(SHEET_ID, '영업_등록', tok);
@@ -898,7 +883,7 @@ async function h_webUpdateSalesperson(p, gToken) {
 }
 
 async function h_webLoadAptPerfData(gToken) {
-  var tok = gToken || await getSaToken();
+  var tok = gToken || await getSheetsToken();
   if (!tok) return [{ name: '독립문극동아파트', spaces: 55, barrierCost: 3000000, months: [] }];
   var partnerLots = [{ gid: 739887865, name: '독립문극동아파트', spaces: 55, barrierCost: 3000000 }];
   var results = [];
@@ -949,7 +934,7 @@ async function h_webLoadAptPerfData(gToken) {
 }
 
 async function h_webGetSheetSoldout(gToken) {
-  var tok = gToken || await getSaToken();
+  var tok = gToken || await getSheetsToken();
   if (!tok) return { rows: [], updated: '' };
   try {
     var metaR = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SOLDOUT_SHEET_ID + '?fields=sheets.properties', { headers: { Authorization: 'Bearer ' + tok } });
@@ -991,7 +976,7 @@ async function h_webGetSheetSoldout(gToken) {
 }
 
 async function h_getSearchHistory(gToken) {
-  var tok = gToken || await getSaToken();
+  var tok = gToken || await getSheetsToken();
   if (!tok) return [];
   try {
     var rows = await sheetsRead(SHEET_ID, '검색기록', tok);
