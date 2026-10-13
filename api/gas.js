@@ -120,13 +120,19 @@ module.exports = async function(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'X-GToken, Content-Type');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  var qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
   var p = {};
-  qs.split('&').forEach(function(kv) {
-    var eq = kv.indexOf('=');
-    if (eq < 0) return;
-    p[decodeURIComponent(kv.slice(0, eq))] = decodeURIComponent(kv.slice(eq + 1).replace(/\+/g, ' '));
-  });
+  try {
+    var parsed = new URL(req.url, 'http://localhost');
+    parsed.searchParams.forEach(function(v, k) { p[k] = v; });
+  } catch (e) {
+    var qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
+    qs.split('&').forEach(function(kv) {
+      var eq = kv.indexOf('=');
+      if (eq < 0) return;
+      try { p[decodeURIComponent(kv.slice(0, eq))] = decodeURIComponent(kv.slice(eq + 1).replace(/\+/g, ' ')); }
+      catch (de) { p[kv.slice(0, eq)] = kv.slice(eq + 1); }
+    });
+  }
 
   var action = p.action || '';
   var gToken = req.headers['x-gtoken'] || null;
