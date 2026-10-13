@@ -1633,10 +1633,9 @@ function _applyCustomPbDate(){
       _pbPeriod='custom';
       _pbCustomLabel=sd+' ~ '+ed;
       _initPartnerBrowser();
-    }),
-    function(err){
+    },function(err){
       if(mc)mc.innerHTML='<div class="placeholder"><div>❌ '+(err.message||err)+'</div></div>';
-    }));
+    });
 }
 function _pbToggleAcc(seq){
   if(_pbOpenSeq===seq){
@@ -2618,8 +2617,7 @@ function _queryDailyStats(lotSeq){
       });
       h+='</div>';
       resEl.innerHTML=h;
-    })
-  ,function(e){resEl.innerHTML='<span style="color:var(--red)">'+(e.message||'조회 실패')+'</span>';});
+    },function(e){resEl.innerHTML='<span style="color:var(--red)">'+(e.message||'조회 실패')+'</span>';});
 }
 
 function renderMain(){
