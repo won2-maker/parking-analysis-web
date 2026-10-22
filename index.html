@@ -1721,10 +1721,7 @@ function _initPartnerBrowser(){
   h+='<div style="font-size:18px;font-weight:900;color:var(--text);letter-spacing:-0.7px">거래처 실적</div>';
   h+='<span id="pbCountInfo" style="font-size:12px;color:var(--text-3);font-weight:500">'+list.length+'개소</span>';
   h+='</div>';
-  h+='<div style="display:flex;gap:5px;margin-bottom:8px">';
-  h+='<button onclick="_pbSmeOnly=true;_pbOpenSeq=null;_renderPartnerBrowser()" style="padding:5px 14px;border-radius:20px;border:1px solid '+(_pbSmeOnly?'var(--blue)':'var(--border)')+';background:'+(_pbSmeOnly?'var(--blue)':'var(--white)')+';color:'+(_pbSmeOnly?'#fff':'var(--text-3)')+';font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">중소운영사</button>';
-  h+='<button onclick="_pbSmeOnly=false;_pbOpenSeq=null;_renderPartnerBrowser()" style="padding:5px 14px;border-radius:20px;border:1px solid '+(!_pbSmeOnly?'var(--blue)':'var(--border)')+';background:'+(!_pbSmeOnly?'var(--blue)':'var(--white)')+';color:'+(!_pbSmeOnly?'#fff':'var(--text-3)')+';font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">전체 보기</button>';
-  h+='</div>';
+  h+='<label class="ios-toggle" title="대형운영사(티맵주차·하이파킹 등) 포함" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer"><input type="checkbox"'+(!_pbSmeOnly?' checked':'')+' onchange="_pbSmeOnly=!this.checked;_pbOpenSeq=null;_renderPartnerBrowser()"><span class="ios-slider"></span><span style="font-size:12px;font-weight:700;color:var(--text-2)">대형운영사 포함</span></label>';
   h+='<div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">';
   h+='<div class="pb-sw" style="flex:1">'+svgSearch+'<input id="pbSearchInp" class="inp" placeholder="거래처명 또는 운영사 검색" oninput="_pbSearch(this.value)"></div>';
   h+='<button class="sales-filter-btn'+(_pbSalesOnly?' on':'')+'" id="pbSalesFilterBtn" onclick="_pbToggleSalesFilter()" title="영업 등록된 거래처만 보기" style="display:flex;align-items:center;gap:4px;height:44px;padding:0 12px">'+_SVG_PIN_SM+(salesCount?'<span class="pb-badge" style="background:var(--amber)">'+salesCount+'</span>':'')+'</button>';
