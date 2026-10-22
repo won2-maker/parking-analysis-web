@@ -1721,7 +1721,15 @@ function _initPartnerBrowser(){
   h+='<div style="font-size:18px;font-weight:900;color:var(--text);letter-spacing:-0.7px">거래처 실적</div>';
   h+='<span id="pbCountInfo" style="font-size:12px;color:var(--text-3);font-weight:500">'+list.length+'개소</span>';
   h+='</div>';
-  h+='<label class="ios-toggle" title="대형운영사(티맵주차·하이파킹 등) 포함" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer"><input type="checkbox"'+(!_pbSmeOnly?' checked':'')+' onchange="_pbSmeOnly=!this.checked;_pbOpenSeq=null;_renderPartnerBrowser()"><span class="ios-slider"></span><span style="font-size:12px;font-weight:700;color:var(--text-2)">대형운영사 포함</span></label>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  h+='<label class="ios-toggle" title="대형운영사(티맵주차·하이파킹 등) 포함" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox"'+(!_pbSmeOnly?' checked':'')+' onchange="_pbSmeOnly=!this.checked;_pbOpenSeq=null;_renderPartnerBrowser()"><span class="ios-slider"></span><span style="font-size:12px;font-weight:700;color:var(--text-2)">대형운영사 포함</span></label>';
+  var _periodBtnStyle=function(k){var on=_pbSortKey===k;return 'padding:4px 11px;border-radius:16px;border:1px solid '+(on?'var(--blue)':'var(--border)')+';background:'+(on?'var(--blue)':'var(--white)')+';color:'+(on?'#fff':'var(--text-3)')+';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit';};
+  h+='<div style="display:flex;gap:4px">';
+  h+='<button onclick="_pbSortKey=\'1w\';_pbOpenSeq=null;_renderPartnerBrowser()" style="'+_periodBtnStyle('1w')+'">1주</button>';
+  h+='<button onclick="_pbSortKey=\'1m\';_pbOpenSeq=null;_renderPartnerBrowser()" style="'+_periodBtnStyle('1m')+'">1개월</button>';
+  h+='<button onclick="_pbSortKey=\'3m\';_pbOpenSeq=null;_renderPartnerBrowser()" style="'+_periodBtnStyle('3m')+'">3개월</button>';
+  h+='<button onclick="_pbSortKey=\'6m\';_pbOpenSeq=null;_renderPartnerBrowser()" style="'+_periodBtnStyle('6m')+'">6개월</button>';
+  h+='</div></div>';
   h+='<div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">';
   h+='<div class="pb-sw" style="flex:1">'+svgSearch+'<input id="pbSearchInp" class="inp" placeholder="거래처명 또는 운영사 검색" oninput="_pbSearch(this.value)"></div>';
   h+='<button class="sales-filter-btn'+(_pbSalesOnly?' on':'')+'" id="pbSalesFilterBtn" onclick="_pbToggleSalesFilter()" title="영업 등록된 거래처만 보기" style="display:flex;align-items:center;gap:4px;height:44px;padding:0 12px">'+_SVG_PIN_SM+(salesCount?'<span class="pb-badge" style="background:var(--amber)">'+salesCount+'</span>':'')+'</button>';
@@ -1890,10 +1898,8 @@ function _renderPartnerBrowser(){
     var hdr='<div style="display:flex;align-items:center;padding:7px 12px 6px;background:#F9FAFB;border-bottom:1px solid #E5E7EB;gap:0">';
     hdr+='<div style="width:32px;flex-shrink:0"></div>';
     hdr+='<div style="flex:1;min-width:0;padding:0 8px;font-size:10px;font-weight:700;color:#9CA3AF">거래처명</div>';
-    hdr+=_hd('1w','1주','60px');
-    hdr+=_hd('1m','1개월','68px');
-    hdr+=_hd('3m','3개월','68px');
-    hdr+=_hd('6m','6개월','68px');
+    var _pkLbl={'1w':'1주','1m':'1개월','3m':'3개월','6m':'6개월'};
+    hdr+=_hd(_pbSortKey,_pkLbl[_pbSortKey]||_pbSortKey,'90px');
     hdr+='<div style="width:44px;flex-shrink:0;text-align:right;font-size:10px;font-weight:700;color:#9CA3AF">전월↕</div>';
     hdr+='<div style="width:20px;flex-shrink:0"></div>';
     hdr+='</div>';
@@ -1922,15 +1928,7 @@ function _renderPartnerBrowser(){
       if(cheapOpp)badges+='<span style="font-size:9px;color:#2563EB;background:#EFF6FF;padding:1px 5px;border-radius:3px;font-weight:600">기회</span>';
       var chg='';
       if(p.rev_prev30>100000){var c=Math.round((p.rev1m-p.rev_prev30)/p.rev_prev30*100);chg='<span style="font-size:11px;color:'+(c>=0?'#16A34A':'#DC2626')+';font-weight:700">'+(c>=0?'+':'')+c+'%</span>';}
-      // 4개 기간 매출
-      var col1w=_pbSortKey==='1w'?'#111827':'#6B7280';
-      var col1m=_pbSortKey==='1m'?'#111827':'#6B7280';
-      var col3m=_pbSortKey==='3m'?'#111827':'#6B7280';
-      var col6m=_pbSortKey==='6m'?'#111827':'#6B7280';
-      var fw1w=_pbSortKey==='1w'?'800':'600';
-      var fw1m=_pbSortKey==='1m'?'800':'600';
-      var fw3m=_pbSortKey==='3m'?'800':'600';
-      var fw6m=_pbSortKey==='6m'?'800':'600';
+      var revVal=p['rev'+_pbSortKey]||0;
       tableHtml+='<div style="border-bottom:1px solid #F3F4F6">';
       tableHtml+='<div class="partner-row" onclick="_pbToggleAcc('+p.seq+')" style="padding:8px 12px;'+(isMarkedRow?'border-left:3px solid #F59E0B;padding-left:9px;':'')+'border-bottom:none;gap:0">';
       tableHtml+='<div style="width:32px;text-align:center;font-size:'+(i<3?'15px':'11px')+';font-weight:800;color:#9CA3AF;flex-shrink:0">'+rankTxt+'</div>';
@@ -1938,10 +1936,7 @@ function _renderPartnerBrowser(){
       tableHtml+='<div style="font-size:13px;font-weight:700;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+(badges?'<span style="margin-left:5px;display:inline-flex;gap:3px;vertical-align:middle">'+badges+'</span>':'')+'</div>';
       tableHtml+='<div style="font-size:10px;color:#9CA3AF;margin-top:1px">'+grp+'</div>';
       tableHtml+='</div>';
-      tableHtml+='<div style="width:60px;flex-shrink:0;text-align:right"><span style="font-size:12px;font-weight:'+fw1w+';color:'+col1w+'">'+FM(p.rev1w)+'</span></div>';
-      tableHtml+='<div style="width:68px;flex-shrink:0;text-align:right"><span style="font-size:12px;font-weight:'+fw1m+';color:'+col1m+'">'+FM(p.rev1m)+'</span></div>';
-      tableHtml+='<div style="width:68px;flex-shrink:0;text-align:right"><span style="font-size:12px;font-weight:'+fw3m+';color:'+col3m+'">'+FM(p.rev3m)+'</span></div>';
-      tableHtml+='<div style="width:68px;flex-shrink:0;text-align:right"><span style="font-size:12px;font-weight:'+fw6m+';color:'+col6m+'">'+FM(p.rev6m)+'</span></div>';
+      tableHtml+='<div style="width:90px;flex-shrink:0;text-align:right"><span style="font-size:12px;font-weight:800;color:#111827">'+FM(revVal)+'</span></div>';
       tableHtml+='<div style="width:44px;flex-shrink:0;text-align:right">'+chg+'</div>';
       tableHtml+=svgChevRight.replace('__SEQ__',p.seq)+(isOpen?' class="open"':'');
       tableHtml+='</div>';
