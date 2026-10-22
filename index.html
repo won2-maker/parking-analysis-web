@@ -846,6 +846,7 @@ function setOpCount(key,val){
     var chkActive=[];
     if(window._viewData)window._viewData.forEach(function(r){if(r.totalRev>0&&(selNames.length===0||selNames.indexOf(r.name)>=0))chkActive.push(r);});
     estSection.innerHTML=_buildEstHtmlGeneral(filteredRev,chkActive,state.opSpaces||50,state.monthlySlots||30);
+    _updatePieCard();
   }
 }
 
@@ -1667,6 +1668,8 @@ function _buildEstHtml(revData,active,opSp){
     var anomalyNote=hasAnomaly?'<br>⚠️ 인근 주차장 월정기 판매 데이터 이상 (충전율 비정상) → 월정기 70% 기본값 적용':'';
     h+='</table><div class="est-note">※ '+spNote+' · '+active.length+'곳 실적 기반<br>※ 월정기/2주권: 면수=한도 기준, 기타: 인근 평균 판매량 면수 비례'+anomalyNote+'<br>※ 참고용 추산입니다</div></div>';
   }
+  var _eMC=0,_eOC=0;catRows.forEach(function(r){if(r.isM)_eMC+=r.sales;else _eOC+=r.sales;});
+  window._lastEstMR=estMR;window._lastEstOR=estOR;window._lastEstMC=_eMC;window._lastEstOC=_eOC;
   return h;
 }
 
@@ -2757,6 +2760,7 @@ function renderMain(){
   var active=viewData.filter(function(r){return r.totalRev>0;});
   var mR=0,mC=0,oR=0,oC=0,u=0;
   active.forEach(function(r){mR+=r.monthlyRev;mC+=r.monthlyCnt;oR+=r.otherRev;oC+=r.otherCnt;u+=r.users;});
+  window._lastU=u;
   var avgMR=active.length?Math.round(mR/active.length):0;
   var avgOR=active.length?Math.round(oR/active.length):0;
   var avgT=active.length?Math.round((mR+oR)/active.length):0;
@@ -2820,7 +2824,7 @@ function renderMain(){
   var total=_pMR+_pOR;
   if(total>0){
     var mPct=Math.round(_pMR/total*100),oPct=100-mPct;
-    h+='<div class="pie-card"><h3 class="card-title">📊 매출 구성</h3>';
+    h+='<div class="pie-card" id="pieCard"><h3 class="card-title">📊 매출 구성</h3>';
     h+='<div style="text-align:center;padding:10px 0">';
     h+='<svg viewBox="0 0 120 120" width="120" height="120">';
     // Simple donut
@@ -3660,6 +3664,39 @@ function toggleOpLot(idx,checked){
   }
 }
 
+function _updatePieCard(){
+  var pc=document.getElementById('pieCard');
+  if(!pc)return;
+  var pMR=window._lastEstMR||0,pOR=window._lastEstOR||0,pMC=window._lastEstMC||0,pOC=window._lastEstOC||0;
+  var pu=window._lastU||0;
+  var total=pMR+pOR;
+  if(total<=0)return;
+  var mPct=Math.round(pMR/total*100),oPct=100-mPct;
+  var mAngle=mPct/100*360,mRad=mAngle*Math.PI/180;
+  var mX=60+40*Math.sin(mRad),mY=60-40*Math.cos(mRad);
+  var largeArc=mAngle>180?1:0;
+  var svgInner;
+  if(mPct>0&&mPct<100){
+    svgInner='<circle cx="60" cy="60" r="40" fill="none" stroke="#f59e0b" stroke-width="16"></circle>'
+      +'<path d="M60 20 A40 40 0 '+largeArc+' 1 '+mX.toFixed(1)+' '+mY.toFixed(1)+'" fill="none" stroke="#3182F6" stroke-width="16"></path>';
+  } else if(mPct>=100){
+    svgInner='<circle cx="60" cy="60" r="40" fill="none" stroke="#3182F6" stroke-width="16"></circle>';
+  } else {
+    svgInner='<circle cx="60" cy="60" r="40" fill="none" stroke="#f59e0b" stroke-width="16"></circle>';
+  }
+  pc.innerHTML='<h3 class="card-title">📊 매출 구성</h3>'
+    +'<div style="text-align:center;padding:10px 0"><svg viewBox="0 0 120 120" width="120" height="120">'+svgInner+'</svg></div>'
+    +'<div class="pie-legend">'
+    +'<div><span class="pie-dot" style="background:#3182F6"></span> <b style="color:#3182F6">월정기 '+mPct+'%</b></div>'
+    +'<div><span class="pie-dot" style="background:#f59e0b"></span> <b style="color:#f59e0b">기타 '+oPct+'%</b></div>'
+    +'</div>'
+    +'<div style="font-size:9px;color:#9ca3af;text-align:right;margin-bottom:2px">예상 매출 기준</div>'
+    +'<table style="margin-top:2px;font-size:12px"><tr style="border-bottom:1px solid #e5e7eb"><td style="color:#3182F6;font-weight:700;padding:5px">월정기</td><td style="text-align:right;padding:5px">'+FWR(pMR)+'원</td><td style="text-align:right;padding:5px;color:#6b7280">'+F(pMC)+'건</td></tr>'
+    +'<tr><td style="color:#f59e0b;font-weight:700;padding:5px">기타</td><td style="text-align:right;padding:5px">'+FWR(pOR)+'원</td><td style="text-align:right;padding:5px;color:#6b7280">'+F(pOC)+'건</td></tr>'
+    +'<tr style="border-top:2px solid #e5e7eb"><td style="font-weight:700;padding:5px">합계</td><td style="text-align:right;padding:5px;font-weight:700">'+FWR(pMR+pOR)+'원</td><td style="text-align:right;padding:5px;color:#6b7280;font-weight:700">'+F(pMC+pOC)+'건</td></tr></table>'
+    +'<div style="text-align:right;font-size:9px;color:#9ca3af;margin-top:4px">인근 이용자 '+F(pu)+'명</div>';
+}
+
 function recalcEstimate(){
   if(!window._viewData||!state.data)return;
   var chks=document.querySelectorAll('.lot-chk');
@@ -3673,6 +3710,7 @@ function recalcEstimate(){
   var active=selData.filter(function(r){return r.totalRev>0;});
   var mR=0,oR=0,mC=0,oC=0,u=0;
   active.forEach(function(r){mR+=r.monthlyRev;oR+=r.otherRev;mC+=r.monthlyCnt;oC+=r.otherCnt;u+=r.users;});
+  window._lastU=u;
 
   // KPI 업데이트
   var kpis=document.querySelectorAll('.kpi .kpi-value');
@@ -3697,6 +3735,7 @@ function recalcEstimate(){
       ?allRev.filter(function(rv){return selNames.indexOf(rv.lot_name)>=0;})
       :[];
     estSection.innerHTML=(state.formula==='general'?_buildEstHtmlGeneral(filteredRev,active,state.opSpaces||50,state.monthlySlots||30):_buildEstHtml(filteredRev,active,state.opSpaces||50));
+    _updatePieCard();
   }
 }
 
